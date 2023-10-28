@@ -3,15 +3,18 @@ package com.senai.apivsconnect.controllers;
 import com.senai.apivsconnect.Dtos.UsuarioDto;
 import com.senai.apivsconnect.models.UsuarioModel;
 import com.senai.apivsconnect.repositories.UsuarioRepository;
+import com.senai.apivsconnect.service.FileUploadService;
 import jakarta.validation.Valid;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -21,8 +24,11 @@ import java.util.UUID;
 @RequestMapping(value = "/usuarios", produces ={"application/json"})
 public class UsuarioController {
     @Autowired
-
     UsuarioRepository usuarioRepository;
+
+    @Autowired
+    FileUploadService fileUploadService;
+
 
     @GetMapping
     public ResponseEntity<List<UsuarioModel>> listaUsuarios() {
@@ -40,19 +46,31 @@ public class UsuarioController {
 
 
     }
-    @PostMapping
-    public ResponseEntity<Object> criarUsuario(@RequestBody @Valid UsuarioDto usuariodto){
+    @PostMapping(consumes = {MediaType.MULTIPART_FORM_DATA_VALUE} )
+    public ResponseEntity<Object> criarUsuario(@ModelAttribute @Valid UsuarioDto usuariodto){
         if (usuarioRepository.findByEmail(usuariodto.email()) != null){
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email ja cadastrado");
         }
         UsuarioModel novoUsuario = new UsuarioModel();
         BeanUtils.copyProperties(usuariodto, novoUsuario);
+
+        String urlImagem;
+
+        try {
+            urlImagem = fileUploadService.fazerupload(usuariodto.imagem());
+        }catch (IOException e){
+            throw new RuntimeException(e);
+
+        }
+
+        novoUsuario.setUrl_img(urlImagem);
+
         return ResponseEntity.status(HttpStatus.CREATED).body(usuarioRepository.save(novoUsuario));
 
     }
-    @PutMapping("/{idUsuario}")
+    @PutMapping( consumes = {MediaType.MULTIPART_FORM_DATA_VALUE})
     public ResponseEntity<Object> editarUsuario(@PathVariable(value = "idUsuario") UUID id,
-      @RequestBody @Valid UsuarioDto usuarioDto){
+      @ModelAttribute @Valid UsuarioDto usuarioDto){
         Optional<UsuarioModel>usuarioBuscado = usuarioRepository.findById(id);
 
         if (usuarioBuscado.isEmpty()){
@@ -60,6 +78,17 @@ public class UsuarioController {
         }
         UsuarioModel usuarioBd = usuarioBuscado.get();
         BeanUtils.copyProperties(usuarioDto, usuarioBd);
+
+        String urlImagem;
+
+        try {
+            urlImagem = fileUploadService.fazerupload(usuariodto.imagem());
+        }catch (IOException e){
+            throw new RuntimeException(e);
+
+        }
+
+        usuarioBd.setUrl_img(urlImagem);
 
         return ResponseEntity.status(HttpStatus.OK).body(usuarioRepository.save(usuarioBd));
     }
